@@ -1,0 +1,2019 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS JULIACA • v3 — Mapa Cívico con Impacto Visual</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+    <style>
+        /* ===============================
+           ATLAS JULIACA v2
+           Cambios respecto a v1:
+           - Variables de estado consistentes (--estado-*)
+           - Toast system (reemplaza alert)
+           - Filtros activos visibles
+           - Cluster styles
+           =============================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --fondo: #0b0e17;
+            --card: #141c2b;
+            --texto: #f0f4ff;
+            --texto-suave: #8aa0c8;
+            --borde: #1e3050;
+            --verde: #00e676;
+            --azul: #40c4ff;
+            --dorado: #ffd740;
+            --coral: #ff6b6b;
+            --morado: #b388ff;
+            --rosa: #ff80ab;
+            --turquesa: #1de9b6;
+            --estado-detectado: #ff6b6b;
+            --estado-validado: #ffd740;
+            --estado-progreso: #40c4ff;
+            --estado-resuelto: #00e676;
+            --sombra: 0 8px 32px rgba(0,0,0,0.6);
+            --radio: 20px;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+            background: var(--fondo);
+            color: var(--texto);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        header {
+            background: linear-gradient(135deg, #0b0e17 0%, #141c2b 100%);
+            border-bottom: 2px solid var(--borde);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+            position: relative;
+            z-index: 10;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--azul), var(--verde), var(--dorado), var(--coral));
+            opacity: 0.6;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--azul), var(--turquesa));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .logo-icon { font-size: 2.2rem; filter: drop-shadow(0 0 12px rgba(64,196,255,0.3)); }
+        .logo small {
+            font-size: 0.65rem;
+            -webkit-text-fill-color: var(--texto-suave);
+            background: none;
+            margin-left: 4px;
+            letter-spacing: 1px;
+        }
+        .search-bar {
+            background: rgba(20,28,43,0.8);
+            border: 2px solid var(--borde);
+            border-radius: 9999px;
+            padding: 8px 20px;
+            width: 300px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--texto-suave);
+            transition: all 0.3s;
+            backdrop-filter: blur(8px);
+        }
+        .search-bar:focus-within { border-color: var(--azul); box-shadow: 0 0 20px rgba(64,196,255,0.15); }
+        .search-bar input {
+            background: transparent; border: none; outline: none;
+            width: 100%; color: var(--texto); font-size: 0.95rem;
+        }
+        .search-bar input::placeholder { color: var(--texto-suave); opacity: 0.6; }
+        .search-bar kbd {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border: 1px solid var(--borde);
+            border-radius: 4px;
+            color: var(--texto-suave);
+            background: rgba(0,0,0,0.3);
+        }
+        .header-actions { display: flex; align-items: center; gap: 12px; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 9999px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, var(--azul), var(--turquesa));
+            color: #0b0e17;
+            box-shadow: 0 4px 16px rgba(64,196,255,0.25);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 32px rgba(64,196,255,0.4); }
+        .btn-outline {
+            background: transparent;
+            color: var(--texto);
+            border: 2px solid var(--borde);
+            box-shadow: none;
+        }
+        .btn-outline:hover { background: rgba(255,255,255,0.05); border-color: var(--azul); }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .avatar {
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--dorado), var(--coral));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1.1rem; color: #0b0e17;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(255,107,107,0.3);
+            transition: all 0.3s;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+        .avatar:hover { transform: scale(1.08); }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 200px;
+            background: linear-gradient(180deg, #0b0e17 0%, #101827 100%);
+            border-right: 2px solid var(--borde);
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+        .nav-item {
+            padding: 12px 16px;
+            margin: 3px 0;
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            color: var(--texto-suave);
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            font-size: 0.95rem;
+            font-weight: 500;
+            position: relative;
+        }
+        .nav-item .icon { font-size: 1.4rem; }
+        .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--texto); transform: translateX(6px); }
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(64,196,255,0.15), rgba(0,230,118,0.08));
+            color: var(--texto);
+            border-left: 4px solid var(--azul);
+        }
+        .nav-item .badge {
+            position: absolute;
+            right: 12px;
+            background: var(--coral);
+            color: white;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 700;
+        }
+        .sidebar-spacer { flex: 1; }
+        .sidebar-stats {
+            background: rgba(20,28,43,0.5);
+            border-radius: 12px;
+            padding: 10px;
+            margin: 8px 0;
+            font-size: 0.7rem;
+            color: var(--texto-suave);
+        }
+        .sidebar-stats div { display: flex; justify-content: space-between; padding: 2px 0; }
+        .sidebar-stats strong { color: var(--texto); }
+        .sidebar-footer {
+            font-size: 0.7rem;
+            color: var(--texto-suave);
+            text-align: center;
+            padding: 16px 0 8px;
+            border-top: 1px solid var(--borde);
+            opacity: 0.6;
+            font-weight: 300;
+            letter-spacing: 0.5px;
+        }
+        .sidebar-footer .reloj { font-size: 0.9rem; color: var(--azul); font-weight: 600; }
+
+        /* ===== MAIN ===== */
+        .main { flex: 1; display: flex; flex-direction: column; padding: 16px 20px 20px 20px; overflow: hidden; }
+        .map-wrapper {
+            flex: 1;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 2px solid var(--borde);
+            position: relative;
+            min-height: 500px;
+            box-shadow: 0 8px 48px rgba(0,0,0,0.4);
+        }
+        #map { width: 100%; height: 100%; min-height: 550px; background: #101827; }
+
+        /* ===== PANEL LATERAL (filtros + lista) ===== */
+        .map-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            width: 300px;
+            max-height: calc(100% - 32px);
+            background: rgba(11,14,23,0.92);
+            backdrop-filter: blur(16px);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--borde);
+        }
+        .panel-tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: none;
+            color: var(--texto-suave);
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        .panel-tab.active {
+            color: var(--azul);
+            border-bottom-color: var(--azul);
+        }
+        .panel-content {
+            padding: 14px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .panel-section { margin-bottom: 16px; }
+        .panel-section h4 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--texto-suave);
+            margin-bottom: 6px;
+        }
+        .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chip {
+            padding: 4px 10px;
+            border-radius: 9999px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--borde);
+            color: var(--texto-suave);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .chip:hover { color: var(--texto); border-color: var(--azul); }
+        .chip.active {
+            background: var(--azul);
+            color: #0b0e17;
+            border-color: var(--azul);
+            font-weight: 600;
+        }
+
+        .report-card {
+            background: rgba(20,28,43,0.6);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border-left: 3px solid var(--borde);
+            transition: all 0.2s;
+        }
+        .report-card:hover { background: rgba(20,28,43,0.9); transform: translateX(3px); }
+        .report-card.priority-alta { border-left-color: var(--coral); }
+        .report-card.priority-media { border-left-color: var(--dorado); }
+        .report-card.priority-baja { border-left-color: var(--verde); }
+        .report-card-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 4px; }
+        .report-card-meta { font-size: 0.7rem; color: var(--texto-suave); display: flex; gap: 8px; }
+        .report-card-empty { text-align: center; padding: 20px; color: var(--texto-suave); font-size: 0.85rem; }
+
+        /* ===== LEYENDA ===== */
+        .map-legend {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(11,14,23,0.92);
+            backdrop-filter: blur(16px);
+            padding: 14px 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            z-index: 400;
+            min-width: 160px;
+            pointer-events: none;
+            font-size: 0.75rem;
+        }
+        .map-legend .titulo { font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+        .map-legend .item { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--texto-suave); }
+        .map-legend .color-box { width: 20px; height: 12px; border-radius: 4px; }
+        .map-legend .color-box.circle { width: 12px; height: 12px; border-radius: 50%; }
+
+        /* ===== CONTROLES CAPAS ===== */
+        .layer-control {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(11,14,23,0.92);
+            backdrop-filter: blur(16px);
+            padding: 14px 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            z-index: 500;
+            font-size: 0.8rem;
+            min-width: 140px;
+        }
+        .layer-control .titulo { font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+        .layer-control label {
+            display: flex; align-items: center; gap: 8px;
+            padding: 3px 0; cursor: pointer; color: var(--texto-suave);
+        }
+        .layer-control label:hover { color: var(--texto); }
+        .layer-control input[type="checkbox"] { accent-color: var(--azul); width: 16px; height: 16px; cursor: pointer; }
+
+        /* ===== STATS ===== */
+        .map-stats {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(11,14,23,0.88);
+            backdrop-filter: blur(12px);
+            padding: 10px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.75rem;
+            color: var(--texto-suave);
+            z-index: 400;
+            pointer-events: none;
+            text-align: right;
+            line-height: 1.6;
+        }
+        .map-stats strong { color: var(--texto); }
+        .map-stats .highlight { color: var(--azul); font-weight: 700; }
+
+        /* ===== POPUPS ===== */
+        .leaflet-popup-content-wrapper {
+            background: rgba(20,28,43,0.95) !important;
+            color: var(--texto) !important;
+            border-radius: 14px !important;
+            border: 1px solid var(--borde) !important;
+        }
+        .leaflet-popup-tip { background: rgba(20,28,43,0.95) !important; }
+        .leaflet-popup-content { min-width: 220px; padding: 4px 0; }
+        .popup-content h4 { font-size: 1rem; margin-bottom: 4px; }
+        .popup-content .cat { font-size: 0.8rem; color: var(--texto-suave); }
+        .popup-content .badge-popup {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin: 6px 4px 4px 0;
+        }
+        .popup-actions { margin-top: 8px; display: flex; gap: 4px; }
+        .popup-actions button {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--borde);
+            background: transparent;
+            color: var(--texto-suave);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .popup-actions button:hover { background: var(--azul); color: #0b0e17; border-color: var(--azul); }
+        .badge-alta { background: var(--coral); color: #0b0e17; }
+        .badge-media { background: var(--dorado); color: #0b0e17; }
+        .badge-baja { background: var(--verde); color: #0b0e17; }
+        .badge-detectado { background: var(--estado-detectado); color: #0b0e17; }
+        .badge-validado { background: var(--estado-validado); color: #0b0e17; }
+        .badge-progreso { background: var(--estado-progreso); color: #0b0e17; }
+        .badge-resuelto { background: var(--estado-resuelto); color: #0b0e17; }
+
+        /* ===== POPUP EXPANDIDO (situación completa) ===== */
+        .popup-expanded {
+            min-width: 280px;
+            max-width: 320px;
+        }
+        .popup-section {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .popup-section h5 {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--texto-suave);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .popup-section p {
+            font-size: 0.8rem;
+            color: var(--texto);
+            line-height: 1.4;
+        }
+        .popup-propuesta {
+            background: rgba(64,196,255,0.08);
+            border-left: 2px solid var(--azul);
+            padding: 4px 8px;
+            margin: 3px 0;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        .popup-propuesta .votos {
+            color: var(--azul);
+            font-weight: 700;
+            margin-left: 4px;
+        }
+        .popup-timeline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--texto-suave);
+        }
+        .popup-timeline-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .popup-timeline-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--verde), var(--dorado), var(--coral));
+            border-radius: 3px;
+        }
+        .popup-timeline-fill.urgente {
+            background: var(--coral);
+            animation: pulse-bar 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-bar {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .popup-escalamiento {
+            background: rgba(255,107,107,0.1);
+            border: 1px solid rgba(255,107,107,0.3);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--coral);
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .popup-escalamiento.activo {
+            background: rgba(255,107,107,0.2);
+            animation: pulse-warn 2s ease-in-out infinite;
+        }
+        @keyframes pulse-warn {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(255,107,107,0); }
+        }
+
+        /* ===== ZOOM CONTROL ===== */
+        .leaflet-control-zoom { border: none !important; }
+        .leaflet-control-zoom a {
+            background: rgba(11,14,23,0.9) !important;
+            color: var(--texto) !important;
+            border: 1px solid var(--borde) !important;
+            border-radius: 10px !important;
+            margin: 2px !important;
+        }
+        .leaflet-control-zoom a:hover { background: rgba(64,196,255,0.15) !important; border-color: var(--azul) !important; }
+
+        /* ===== MARCADORES (animación pulse para alta prioridad) ===== */
+        .marker-alta-pulse {
+            animation: pulse-coral 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse-coral {
+            0%, 100% {
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5),
+                            0 0 0 0 rgba(255,107,107,0.7),
+                            0 0 0 0 rgba(255,107,107,0.4);
+            }
+            50% {
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5),
+                            0 0 0 18px rgba(255,107,107,0),
+                            0 0 0 30px rgba(255,107,107,0);
+            }
+        }
+        .marker-media-pulse {
+            animation: pulse-dorado 2.5s ease-in-out infinite;
+        }
+        @keyframes pulse-dorado {
+            0%, 100% { box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,215,64,0.5); }
+            50% { box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 14px rgba(255,215,64,0); }
+        }
+        /* Halo de impacto alrededor de problemas urgentes */
+        .impact-halo {
+            pointer-events: none;
+            animation: halo-breathe 3s ease-in-out infinite;
+        }
+        @keyframes halo-breathe {
+            0%, 100% { opacity: 0.25; transform: scale(1); }
+            50% { opacity: 0.45; transform: scale(1.08); }
+        }
+        /* Etiquetas flotantes de distrito */
+        .district-label {
+            background: rgba(11,14,23,0.85);
+            border: 1px solid var(--borde);
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: var(--texto);
+            white-space: nowrap;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .district-label .count {
+            color: var(--coral);
+            font-weight: 800;
+            font-size: 0.95rem;
+        }
+        .district-label.warning .count { color: var(--coral); }
+        .district-label.ok .count { color: var(--verde); }
+
+        /* ===== CLUSTER STYLE (override de markercluster) ===== */
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background-color: rgba(64,196,255,0.2) !important;
+            backdrop-filter: blur(4px);
+        }
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background-color: var(--azul) !important;
+            color: #0b0e17 !important;
+            font-weight: 800 !important;
+            border: 2px solid white;
+        }
+
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center; align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: linear-gradient(145deg, #141c2b, #0b0e17);
+            border-radius: 24px;
+            border: 1px solid var(--borde);
+            max-width: 520px; width: 100%;
+            padding: 28px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal h2 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--azul), var(--turquesa));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .modal .sub { color: var(--texto-suave); margin-bottom: 16px; font-size: 0.9rem; }
+        .modal label {
+            display: block; font-size: 0.75rem; font-weight: 600;
+            margin-top: 14px; margin-bottom: 4px;
+            color: var(--texto-suave);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .modal input, .modal select, .modal textarea {
+            width: 100%; padding: 11px 14px;
+            background: rgba(11,14,23,0.8);
+            border: 2px solid var(--borde);
+            border-radius: 10px;
+            color: var(--texto);
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .modal input:focus, .modal select:focus, .modal textarea:focus {
+            outline: none; border-color: var(--azul);
+        }
+        .modal input.error, .modal textarea.error { border-color: var(--coral); }
+        .modal textarea { min-height: 70px; resize: vertical; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
+        .modal-location-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .field-hint {
+            font-size: 0.7rem;
+            color: var(--texto-suave);
+            margin-top: 3px;
+            opacity: 0.7;
+        }
+
+        /* ===== TOAST SYSTEM ===== */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            max-width: 360px;
+        }
+        .toast {
+            background: rgba(20,28,43,0.96);
+            backdrop-filter: blur(16px);
+            color: var(--texto);
+            padding: 12px 16px;
+            border-radius: 12px;
+            border-left: 4px solid var(--azul);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.85rem;
+            animation: toast-in 0.3s ease;
+            min-width: 240px;
+            max-width: 100%;
+        }
+        .toast.toast-success { border-left-color: var(--verde); }
+        .toast.toast-warning { border-left-color: var(--dorado); }
+        .toast.toast-error { border-left-color: var(--coral); }
+        .toast.toast-info { border-left-color: var(--azul); }
+        .toast.fade-out { animation: toast-out 0.3s ease forwards; }
+        .toast .toast-icon { font-size: 1.2rem; flex-shrink: 0; }
+        .toast .toast-msg { flex: 1; line-height: 1.4; }
+        .toast .toast-close {
+            background: none; border: none; cursor: pointer;
+            color: var(--texto-suave); font-size: 1.1rem;
+            padding: 0; flex-shrink: 0;
+        }
+        @keyframes toast-in {
+            from { transform: translateX(120%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toast-out {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(120%); opacity: 0; }
+        }
+
+        /* ===== KEYBOARD HINTS ===== */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(11,14,23,0.92);
+            backdrop-filter: blur(16px);
+            padding: 8px 16px;
+            border-radius: 9999px;
+            border: 1px solid var(--borde);
+            font-size: 0.7rem;
+            color: var(--texto-suave);
+            z-index: 1500;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            display: flex;
+            gap: 14px;
+        }
+        .keyboard-hint.visible { opacity: 1; }
+        .keyboard-hint kbd {
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border: 1px solid var(--borde);
+            border-radius: 4px;
+            background: rgba(0,0,0,0.4);
+            margin-right: 4px;
+            color: var(--texto);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .map-panel { display: none; }
+            .map-legend { display: none; }
+        }
+        @media (max-width: 768px) {
+            .sidebar { width: 60px; padding: 12px 8px; }
+            .sidebar .nav-item span:not(.icon) { display: none; }
+            .sidebar .nav-item { justify-content: center; padding: 12px; }
+            .sidebar .nav-item .badge, .sidebar-stats { display: none; }
+            .search-bar { width: 160px; padding: 6px 12px; }
+            .search-bar input { font-size: 0.8rem; }
+            .search-bar kbd { display: none; }
+            .layer-control { padding: 10px 14px; font-size: 0.7rem; min-width: 110px; top: 10px; right: 10px; }
+            .map-stats { bottom: 10px; right: 10px; font-size: 0.7rem; padding: 8px 12px; }
+        }
+        @media (max-width: 480px) {
+            .search-bar { display: none; }
+            .header-actions .btn { padding: 6px 10px; font-size: 0.75rem; }
+            .modal { padding: 18px; margin: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <span class="logo-icon">🗺️</span>
+        ATLAS JULIACA <small>v3</small>
+    </div>
+
+    <div class="search-bar">
+        🔍
+        <input type="text" placeholder="Buscar reporte, calle, categoría..." id="globalSearch" autocomplete="off">
+        <kbd>/</kbd>
+    </div>
+
+    <div class="header-actions">
+        <button class="btn" onclick="showNewReport()" title="Nuevo reporte (N)">+ Reportar</button>
+        <button class="btn btn-outline btn-sm" onclick="exportData()" title="Exportar JSON">⬇️ Export</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('importInput').click()" title="Importar JSON">⬆️ Import</button>
+        <input type="file" id="importInput" accept=".json" style="display:none" onchange="importData(event)">
+        <div class="avatar" onclick="toggleUserMenu()" title="Perfil">CJ</div>
+    </div>
+</header>
+
+<div class="container" style="display:flex; flex:1; overflow:hidden;">
+    <aside class="sidebar">
+        <button class="nav-item active" data-section="mapa">
+            <span class="icon">🗺️</span><span>Mapa</span>
+        </button>
+        <button class="nav-item" data-section="dashboard">
+            <span class="icon">📊</span><span>Dashboard</span>
+            <span class="badge" id="badgeReportes">0</span>
+        </button>
+        <button class="nav-item" data-section="reportes">
+            <span class="icon">📋</span><span>Reportes</span>
+        </button>
+        <button class="nav-item" data-section="propuestas">
+            <span class="icon">💡</span><span>Propuestas</span>
+        </button>
+
+        <div class="sidebar-spacer"></div>
+
+        <div class="sidebar-stats" id="sidebarStats">
+            <div><span>🔴 Alta</span><strong id="statAlta">0</strong></div>
+            <div><span>🟡 Media</span><strong id="statMedia">0</strong></div>
+            <div><span>🟢 Baja</span><strong id="statBaja">0</strong></div>
+            <div style="border-top:1px solid var(--borde); padding-top:4px; margin-top:4px;">
+                <span>✅ Resueltos</span><strong id="statResueltos">0</strong>
+            </div>
+        </div>
+
+        <button class="nav-item" data-section="atlas">
+            <span class="icon">🏔️</span><span>Atlas</span>
+        </button>
+        <button class="nav-item" data-section="transparencia">
+            <span class="icon">📜</span><span>Transparencia</span>
+        </button>
+
+        <div class="sidebar-footer">
+            Juliaca · San Román<br>
+            <span class="reloj" id="clockDisplay">--:--</span>
+        </div>
+    </aside>
+
+    <main class="main">
+        <section id="section-mapa" style="display:flex; flex:1; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <h2 style="font-size:1.5rem; background:linear-gradient(135deg, var(--azul), var(--turquesa)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">🗺️ Mapa Cívico</h2>
+                    <p style="color:var(--texto-suave); font-size:0.85rem;">Reportes, problemas y territorio de Juliaca en tiempo real</p>
+                </div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="zoomToDistrict('juliaca')">📍 Centro</button>
+                    <button class="btn btn-outline btn-sm" onclick="zoomToDistrict('bellavista')">📍 Bellavista</button>
+                    <button class="btn btn-outline btn-sm" onclick="zoomToDistrict('rinconada')">📍 Rinconada</button>
+                    <button class="btn btn-outline btn-sm" onclick="resetView()">🔄 Reset</button>
+                </div>
+            </div>
+
+            <div class="map-wrapper" id="mapWrapper">
+                <div id="map"></div>
+
+                <!-- Panel lateral: filtros + lista -->
+                <div class="map-panel" id="mapPanel">
+                    <div class="panel-tabs">
+                        <button class="panel-tab active" data-tab="filtros">🎛️ Filtros</button>
+                        <button class="panel-tab" data-tab="lista">📋 Lista (<span id="listCount">0</span>)</button>
+                    </div>
+                    <div class="panel-content" id="panelContent">
+                        <!-- contenido dinámico -->
+                    </div>
+                </div>
+
+                <!-- Capas -->
+                <div class="layer-control">
+                    <div class="titulo">🎨 Capas</div>
+                    <label><input type="checkbox" checked onchange="toggleLayer('distritos', this.checked)"> Distritos</label>
+                    <label><input type="checkbox" checked onchange="toggleLayer('transitables', this.checked)"> Vías</label>
+                    <label><input type="checkbox" checked onchange="toggleLayer('inhospitas', this.checked)"> Inhóspito</label>
+                    <label><input type="checkbox" checked onchange="toggleLayer('rios', this.checked)"> Ríos</label>
+                    <label><input type="checkbox" checked onchange="toggleLayer('marcadores', this.checked)"> Problemas</label>
+                    <label><input type="checkbox" onchange="toggleHeatmap(this.checked)"> 🔥 Heatmap</label>
+                </div>
+
+                <!-- Leyenda -->
+                <div class="map-legend">
+                    <div class="titulo">📖 Leyenda</div>
+                    <div class="item"><span class="color-box" style="background:var(--azul);"></span> Centro</div>
+                    <div class="item"><span class="color-box" style="background:var(--morado);"></span> Bellavista</div>
+                    <div class="item"><span class="color-box" style="background:var(--dorado);"></span> Rinconada</div>
+                    <div class="item"><span class="color-box" style="background:var(--verde);"></span> Vías</div>
+                    <div class="item"><span class="color-box" style="background:var(--coral);"></span> Inhóspito</div>
+                    <div class="item"><span class="color-box" style="background:var(--turquesa);"></span> Ríos</div>
+                    <div class="item"><span class="color-box circle" style="background:var(--coral); box-shadow:0 0 8px rgba(255,107,107,0.6);"></span> Urgente (con halo)</div>
+                </div>
+
+                <!-- Stats -->
+                <div class="map-stats">
+                    <div><strong id="statPoblacion">384,000</strong> hab.</div>
+                    <div><strong id="statArea">1,250</strong> km²</div>
+                    <div><span class="highlight" id="statProblemas">0</span> activos · <span id="statResueltosMap">0</span> resueltos</div>
+                    <div style="font-size:0.7rem; opacity:0.6;">Zoom: <span id="mapZoom">13</span>×</div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- ===== MODAL: NUEVO REPORTE ===== -->
+<div class="modal-overlay" id="reportModal">
+    <div class="modal">
+        <h2>📋 Nuevo Reporte</h2>
+        <div class="sub">Reportá un problema en Juliaca. Tu reporte queda guardado localmente.</div>
+
+        <label>📌 Título</label>
+        <input type="text" id="repTitulo" placeholder="Ej: Bache profundo en Av. Circunvalación" maxlength="80">
+        <div class="field-hint">Mínimo 8 caracteres, máximo 80</div>
+
+        <label>🏷️ Categoría</label>
+        <select id="repCategoria">
+            <option value="transporte">🚦 Transporte</option>
+            <option value="agua">💧 Agua</option>
+            <option value="alcantarillado">🚰 Alcantarillado</option>
+            <option value="seguridad">🛡️ Seguridad</option>
+            <option value="educacion">🏫 Educación</option>
+            <option value="salud">🏥 Salud</option>
+            <option value="energia">🔌 Energía</option>
+            <option value="basura">🗑️ Basura / Limpieza</option>
+        </select>
+
+        <label>⚠️ Prioridad</label>
+        <select id="repPrioridad">
+            <option value="baja">🟢 Baja</option>
+            <option value="media" selected>🟡 Media</option>
+            <option value="alta">🔴 Alta</option>
+        </select>
+
+        <label>📍 Ubicación (texto descriptivo)</label>
+        <input type="text" id="repUbicacion" placeholder="Ej: Av. Circunvalación, esquina con Salaverry">
+        <div class="modal-location-actions">
+            <button type="button" class="btn btn-outline btn-sm" onclick="useMyLocation()">📍 Usar mi ubicación</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="pickOnMap()">🗺️ Marcar en mapa</button>
+        </div>
+        <div class="field-hint" id="coordsHint">Coordenadas: aleatorias (no especificadas)</div>
+
+        <label>📝 Descripción</label>
+        <textarea id="repDesc" rows="3" placeholder="Describí el problema con detalle: cuándo empezó, a quién afecta, etc."></textarea>
+
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeModal('reportModal')">Cancelar</button>
+            <button class="btn" id="submitReportBtn">Publicar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Keyboard hint -->
+<div class="keyboard-hint" id="keyboardHint">
+    <span><kbd>/</kbd> buscar</span>
+    <span><kbd>N</kbd> reportar</span>
+    <span><kbd>Esc</kbd> cerrar</span>
+    <span><kbd>?</kbd> ayuda</span>
+</div>
+
+<!-- Leaflet + plugins -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script>
+'use strict';
+
+// ================================================================
+// CONFIG
+// ================================================================
+const CONFIG = {
+    storageKey: 'atlas-juliaca-v3',
+    schemaVersion: 3,
+    defaultCenter: [-15.49, -70.13],
+    defaultZoom: 13,
+    mapTiles: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+};
+
+const CATEGORIAS = {
+    'transporte':      { icon: '🚦', label: 'Transporte' },
+    'agua':            { icon: '💧', label: 'Agua' },
+    'alcantarillado':  { icon: '🚰', label: 'Alcantarillado' },
+    'seguridad':       { icon: '🛡️', label: 'Seguridad' },
+    'educacion':       { icon: '🏫', label: 'Educación' },
+    'salud':           { icon: '🏥', label: 'Salud' },
+    'energia':         { icon: '🔌', label: 'Energía' },
+    'basura':          { icon: '🗑️', label: 'Basura' },
+};
+const PRIORIDADES = {
+    'alta':  { color: '#ff6b6b', label: 'Alta',  icon: '🔴' },
+    'media': { color: '#ffd740', label: 'Media', icon: '🟡' },
+    'baja':  { color: '#00e676', label: 'Baja',  icon: '🟢' },
+};
+const ESTADOS = {
+    'detectado': { label: 'Detectado',   icon: '🔍' },
+    'validado':  { label: 'Validado',    icon: '✔️' },
+    'progreso':  { label: 'En progreso', icon: '🔧' },
+    'resuelto':  { label: 'Resuelto',    icon: '✅' },
+};
+
+// ================================================================
+// TERRITORIO (formato GeoJSON-ready para futura migración)
+// ================================================================
+const TERRITORIO = {
+    limite_juliaca: [
+        [-15.43,-70.18],[-15.38,-70.14],[-15.39,-70.08],[-15.44,-70.04],
+        [-15.50,-70.02],[-15.55,-70.04],[-15.58,-70.08],[-15.56,-70.14],
+        [-15.52,-70.18],[-15.48,-70.20],[-15.43,-70.18]
+    ],
+    distritos: {
+        'juliaca': {
+            nombre: 'Juliaca Centro',
+            color: '#40c4ff',
+            poblacion: 280000,
+            limites: [[-15.47,-70.16],[-15.44,-70.14],[-15.45,-70.10],[-15.48,-70.08],[-15.51,-70.10],[-15.50,-70.14],[-15.47,-70.16]]
+        },
+        'bellavista': {
+            nombre: 'Bellavista',
+            color: '#b388ff',
+            poblacion: 65000,
+            limites: [[-15.51,-70.14],[-15.50,-70.10],[-15.53,-70.08],[-15.56,-70.10],[-15.55,-70.14],[-15.51,-70.14]]
+        },
+        'rinconada': {
+            nombre: 'La Rinconada',
+            color: '#ffd740',
+            poblacion: 39000,
+            limites: [[-15.44,-70.10],[-15.42,-70.08],[-15.43,-70.05],[-15.46,-70.06],[-15.47,-70.09],[-15.44,-70.10]]
+        }
+    },
+    vias_transitables: [
+        { coords: [[-15.47,-70.17],[-15.45,-70.13],[-15.47,-70.09],[-15.50,-70.07]], nombre: 'Av. Circunvalación' },
+        { coords: [[-15.49,-70.16],[-15.48,-70.12],[-15.47,-70.08]], nombre: 'Av. La Torre' },
+        { coords: [[-15.52,-70.15],[-15.50,-70.11],[-15.48,-70.07]], nombre: 'Av. San Román' },
+        { coords: [[-15.45,-70.08],[-15.48,-70.06],[-15.51,-70.04]], nombre: 'Av. Huancané' },
+        { coords: [[-15.40,-70.16],[-15.42,-70.12],[-15.44,-70.08]], nombre: 'Vía evitamiento' },
+    ],
+    zonas_inhospitas: [
+        { coords: [[-15.42,-70.18],[-15.39,-70.16],[-15.40,-70.13],[-15.43,-70.14],[-15.42,-70.18]], nombre: 'Cerro Colorado', descripcion: 'Zona alta, pendientes pronunciadas' },
+        { coords: [[-15.54,-70.16],[-15.53,-70.14],[-15.55,-70.12],[-15.57,-70.14],[-15.54,-70.16]], nombre: 'Humedales del Coata', descripcion: 'Terreno inestable, inundable' }
+    ],
+    rios: [
+        { coords: [[-15.52,-70.18],[-15.50,-70.15],[-15.48,-70.12],[-15.46,-70.09]], nombre: 'Río Coata' },
+        { coords: [[-15.44,-70.06],[-15.46,-70.04],[-15.48,-70.02]], nombre: 'Río Seco' }
+    ]
+};
+
+// ================================================================
+// SEED DATA (reportes de muestra con propuestas y escalamiento)
+// ================================================================
+const SEED_REPORTES = [
+    {
+        id: 'r1', titulo: 'Bache profundo en Av. Circunvalación',
+        categoria: 'transporte', prioridad: 'alta', estado: 'detectado',
+        lat: -15.48, lng: -70.13, usuario: 'Carlos R.', fecha: '2025-06-05',
+        descripcion: 'Bache de 50cm de profundidad, peligro para motos y bicicletas. Ya hubo 2 accidentes esta semana.',
+        propuestas: [
+            { texto: 'Bacheo asfáltico en frío (S/ 3,500)', votos: 23 },
+            { texto: 'Repavimentación completa de la cuadra (S/ 18,000)', votos: 41 },
+        ],
+        afectados: 8500,
+        plazoLimite: 15,  // días desde detección
+        diasTranscurridos: 12,
+        escalamiento: { activo: true, instancia: 'Defensoría del Pueblo' },
+    },
+    {
+        id: 'r2', titulo: 'Fuga de agua en Bellavista',
+        categoria: 'agua', prioridad: 'alta', estado: 'progreso',
+        lat: -15.52, lng: -70.12, usuario: 'María L.', fecha: '2025-06-04',
+        descripcion: 'Fuga continua hace 3 días, calle inundada, se pierden ~5,000 litros por día.',
+        propuestas: [
+            { texto: 'Cambio de tubería matriz (SedaJuliaca)', votos: 67 },
+        ],
+        afectados: 1200,
+        plazoLimite: 7,
+        diasTranscurridos: 5,
+        escalamiento: { activo: false },
+    },
+    {
+        id: 'r3', titulo: 'Alcantarilla tapada en San José',
+        categoria: 'alcantarillado', prioridad: 'media', estado: 'validado',
+        lat: -15.50, lng: -70.10, usuario: 'José P.', fecha: '2025-06-03',
+        descripcion: 'Mal olor, aguas estancadas, criadero de zancudos.',
+        propuestas: [
+            { texto: 'Limpieza y desatoro municipal', votos: 18 },
+            { texto: 'Rejilla nueva + mantenimiento mensual', votos: 12 },
+        ],
+        afectados: 600,
+        plazoLimite: 21,
+        diasTranscurridos: 14,
+        escalamiento: { activo: false },
+    },
+    {
+        id: 'r4', titulo: 'Robos frecuentes en parque central',
+        categoria: 'seguridad', prioridad: 'alta', estado: 'progreso',
+        lat: -15.47, lng: -70.14, usuario: 'Ana G.', fecha: '2025-06-02',
+        descripcion: 'Tres robos a transeúntes en una semana. Falta serenazgo nocturno y luminarias.',
+        propuestas: [
+            { texto: 'Patrullaje nocturno permanente', votos: 89 },
+            { texto: 'Cámaras de videovigilancia (4 ptos)', votos: 76 },
+            { texto: 'Mejora de iluminación del parque', votos: 54 },
+        ],
+        afectados: 15000,
+        plazoLimite: 30,
+        diasTranscurridos: 28,
+        escalamiento: { activo: true, instancia: 'Comisaría + Municipalidad' },
+    },
+    {
+        id: 'r5', titulo: 'Falta de iluminación La Rinconada',
+        categoria: 'energia', prioridad: 'media', estado: 'detectado',
+        lat: -15.44, lng: -70.08, usuario: 'Luis M.', fecha: '2025-06-01',
+        descripcion: 'Cuadra entera a oscuras hace 2 semanas. Postes funcionan pero focos quemados.',
+        propuestas: [
+            { texto: 'Cambio de focos LED (Electrocentro)', votos: 31 },
+        ],
+        afectados: 450,
+        plazoLimite: 14,
+        diasTranscurridos: 8,
+        escalamiento: { activo: false },
+    },
+    {
+        id: 'r6', titulo: 'Poste reparado en Jirón Lima',
+        categoria: 'energia', prioridad: 'baja', estado: 'resuelto',
+        lat: -15.49, lng: -70.12, usuario: 'Sandra V.', fecha: '2025-05-28',
+        descripcion: 'Electrocentro reparó el poste caído.',
+        propuestas: [
+            { texto: 'Reemplazo de poste (ejecutado)', votos: 45 },
+        ],
+        afectados: 200,
+        plazoLimite: 10,
+        diasTranscurridos: 8,
+        escalamiento: { activo: false },
+    },
+];
+
+// ================================================================
+// ESTADO
+// ================================================================
+const State = {
+    reportes: [],
+    filtros: {
+        categorias: new Set(),  // vacío = todas
+        prioridades: new Set(),
+        estados: new Set(),
+        busqueda: '',
+    },
+    panel: { tab: 'filtros' },
+    pickingLocation: false,
+    pickedCoords: null,
+};
+
+// ================================================================
+// STORAGE (localStorage con versionado de schema)
+// ================================================================
+const Storage = {
+    load() {
+        try {
+            const raw = localStorage.getItem(CONFIG.storageKey);
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (data.schemaVersion !== CONFIG.schemaVersion) {
+                console.warn('Schema desactualizado, migración pendiente:', data.schemaVersion, '→', CONFIG.schemaVersion);
+                // migración futura iría acá
+            }
+            return data;
+        } catch (e) {
+            console.error('Storage.load falló:', e);
+            return null;
+        }
+    },
+    save() {
+        try {
+            const data = {
+                schemaVersion: CONFIG.schemaVersion,
+                savedAt: new Date().toISOString(),
+                reportes: State.reportes,
+            };
+            localStorage.setItem(CONFIG.storageKey, JSON.stringify(data));
+        } catch (e) {
+            console.error('Storage.save falló:', e);
+            Toast.error('No se pudo guardar localmente');
+        }
+    },
+    clear() { localStorage.removeItem(CONFIG.storageKey); }
+};
+
+// ================================================================
+// TOAST SYSTEM (reemplaza alert)
+// ================================================================
+const Toast = {
+    show(msg, type = 'info', duration = 3500) {
+        const container = document.getElementById('toastContainer');
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        const icons = { success: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
+        el.innerHTML = `
+            <span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+            <span class="toast-msg">${msg}</span>
+            <button class="toast-close">×</button>
+        `;
+        el.querySelector('.toast-close').addEventListener('click', () => this.dismiss(el));
+        container.appendChild(el);
+        setTimeout(() => this.dismiss(el), duration);
+    },
+    dismiss(el) {
+        if (!el || el.classList.contains('fade-out')) return;
+        el.classList.add('fade-out');
+        setTimeout(() => el.remove(), 300);
+    },
+    success(msg, d) { this.show(msg, 'success', d); },
+    error(msg, d)   { this.show(msg, 'error', d); },
+    warn(msg, d)    { this.show(msg, 'warning', d); },
+    info(msg, d)    { this.show(msg, 'info', d); },
+};
+
+// ================================================================
+// MAPA — estado y capas
+// ================================================================
+let mapInstance = null;
+let layers = { distritos: null, transitables: null, inhospitas: null, rios: null };
+let markerCluster = null;
+let heatLayer = null;
+let heatVisible = false;
+
+function initMap() {
+    mapInstance = L.map('map', {
+        center: CONFIG.defaultCenter,
+        zoom: CONFIG.defaultZoom,
+        zoomControl: true,
+        fadeAnimation: true,
+    });
+
+    L.tileLayer(CONFIG.mapTiles, {
+        attribution: '© OpenStreetMap, © CartoDB',
+        maxZoom: 19,
+        subdomains: 'abcd',
+    }).addTo(mapInstance);
+
+    markerCluster = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+    });
+    mapInstance.addLayer(markerCluster);
+
+    drawDistricts();
+    drawViasTransitables();
+    drawZonasInhospitas();
+    drawRios();
+    refreshMarkers();
+
+    mapInstance.on('zoomend', () => {
+        document.getElementById('mapZoom').textContent = mapInstance.getZoom();
+        refreshMarkers();  // refresh para mostrar/ocultar labels de distrito
+    });
+    mapInstance.on('click', (e) => {
+        if (State.pickingLocation) {
+            State.pickedCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
+            updateCoordsHint();
+            mapInstance.getContainer().style.cursor = '';
+            State.pickingLocation = false;
+            document.getElementById('reportModal').classList.add('open');
+            Toast.success(`Ubicación seleccionada: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
+        }
+    });
+}
+
+function drawDistricts() {
+    if (layers.distritos) mapInstance.removeLayer(layers.distritos);
+    const group = L.layerGroup();
+    for (const [key, d] of Object.entries(TERRITORIO.distritos)) {
+        const poly = L.polygon(d.limites, {
+            color: d.color, weight: 4, opacity: 0.9,
+            fillColor: d.color, fillOpacity: 0.15
+        });
+        poly.bindPopup(`<div class="popup-content"><h4>🏘️ ${d.nombre}</h4><div class="cat">Pob.: ${d.poblacion.toLocaleString()} hab.</div></div>`);
+        group.addLayer(poly);
+    }
+    const limite = L.polygon(TERRITORIO.limite_juliaca, {
+        color: '#ffffff', weight: 2, opacity: 0.2, fill: false, dashArray: '6, 8'
+    });
+    group.addLayer(limite);
+    layers.distritos = group;
+    mapInstance.addLayer(group);
+}
+
+function drawViasTransitables() {
+    if (layers.transitables) mapInstance.removeLayer(layers.transitables);
+    const group = L.layerGroup();
+    TERRITORIO.vias_transitables.forEach(v => {
+        const line = L.polyline(v.coords, { color: '#00e676', weight: 6, opacity: 0.8 });
+        line.bindPopup(`<div class="popup-content"><h4>🛣️ ${v.nombre}</h4><div class="cat">Vía transitable</div></div>`);
+        group.addLayer(line);
+    });
+    layers.transitables = group;
+    mapInstance.addLayer(group);
+}
+
+function drawZonasInhospitas() {
+    if (layers.inhospitas) mapInstance.removeLayer(layers.inhospitas);
+    const group = L.layerGroup();
+    TERRITORIO.zonas_inhospitas.forEach(z => {
+        const poly = L.polygon(z.coords, {
+            color: '#ff6b6b', weight: 3, opacity: 0.8,
+            fillColor: '#ff6b6b', fillOpacity: 0.15, dashArray: '4, 6'
+        });
+        poly.bindPopup(`<div class="popup-content"><h4>⛔ ${z.nombre}</h4><div class="cat">${z.descripcion}</div></div>`);
+        group.addLayer(poly);
+    });
+    layers.inhospitas = group;
+    mapInstance.addLayer(group);
+}
+
+function drawRios() {
+    if (layers.rios) mapInstance.removeLayer(layers.rios);
+    const group = L.layerGroup();
+    TERRITORIO.rios.forEach(r => {
+        const line = L.polyline(r.coords, { color: '#1de9b6', weight: 6, opacity: 0.7 });
+        line.bindPopup(`<div class="popup-content"><h4>🌊 ${r.nombre}</h4><div class="cat">Cuerpo de agua</div></div>`);
+        group.addLayer(line);
+    });
+    layers.rios = group;
+    mapInstance.addLayer(group);
+}
+
+// ================================================================
+// MARCADORES (con filtros aplicados)
+// ================================================================
+function reportesFiltrados() {
+    const { categorias, prioridades, estados, busqueda } = State.filtros;
+    const term = busqueda.toLowerCase().trim();
+    return State.reportes.filter(r => {
+        if (categorias.size && !categorias.has(r.categoria)) return false;
+        if (prioridades.size && !prioridades.has(r.prioridad)) return false;
+        if (estados.size && !estados.has(r.estado)) return false;
+        if (term) {
+            const haystack = `${r.titulo} ${r.descripcion} ${r.usuario} ${r.categoria}`.toLowerCase();
+            if (!haystack.includes(term)) return false;
+        }
+        return true;
+    });
+}
+
+function refreshMarkers() {
+    if (!markerCluster) return;
+    markerCluster.clearLayers();
+    // Limpiar halos previos
+    if (window._impactHalos) {
+        window._impactHalos.forEach(h => mapInstance.removeLayer(h));
+    }
+    window._impactHalos = [];
+    // Limpiar labels de distrito
+    if (window._districtLabels) {
+        window._districtLabels.forEach(l => mapInstance.removeLayer(l));
+    }
+    window._districtLabels = [];
+
+    const filtrados = reportesFiltrados();
+
+    filtrados.forEach(r => {
+        const color = PRIORIDADES[r.prioridad]?.color || '#40c4ff';
+        const pulseClass = r.prioridad === 'alta' && r.estado !== 'resuelto'
+            ? 'marker-alta-pulse'
+            : r.prioridad === 'media' && r.estado !== 'resuelto'
+                ? 'marker-media-pulse'
+                : '';
+        const opacity = r.estado === 'resuelto' ? 0.4 : 1;
+
+        // Halo de impacto para problemas urgentes no resueltos
+        if (r.prioridad === 'alta' && r.estado !== 'resuelto') {
+            const radio = r.afectados ? Math.min(400, 100 + r.afectados / 50) : 150;
+            const halo = L.circle([r.lat, r.lng], {
+                radius: radio,
+                color: '#ff6b6b',
+                fillColor: '#ff6b6b',
+                fillOpacity: 0.15,
+                weight: 2,
+                opacity: 0.4,
+                className: 'impact-halo',
+                interactive: false,
+            });
+            mapInstance.addLayer(halo);
+            window._impactHalos.push(halo);
+        }
+
+        const icon = L.divIcon({
+            html: `<div class="${pulseClass}" style="background:${color}; opacity:${opacity}; width:36px; height:36px; border-radius:50%; border:3px solid white; box-shadow:0 4px 20px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; font-size:18px;">${CATEGORIAS[r.categoria]?.icon || '📍'}</div>`,
+            className: '', iconSize: [36,36], iconAnchor: [18,18],
+        });
+        const marker = L.marker([r.lat, r.lng], { icon })
+            .bindPopup(buildPopup(r), { maxWidth: 340 });
+        marker.on('popupopen', () => attachPopupActions(r.id));
+        markerCluster.addLayer(marker);
+    });
+
+    // Etiquetas de distrito con conteo de problemas
+    addDistrictLabels(filtrados);
+
+    refreshHeatmap();
+    updateStats();
+    renderPanel();
+    document.getElementById('listCount').textContent = filtrados.length;
+}
+
+function addDistrictLabels(reportes) {
+    if (!mapInstance) return;
+    if (mapInstance.getZoom() > 14) return;  // solo mostrar zoom out
+
+    for (const [key, d] of Object.entries(TERRITORIO.distritos)) {
+        const center = d.limites.reduce(
+            (acc, c) => [acc[0] + c[0]/d.limites.length, acc[1] + c[1]/d.limites.length],
+            [0, 0]
+        );
+        // Contar problemas activos dentro del distrito (bounding box simple)
+        const lats = d.limites.map(c => c[0]);
+        const lngs = d.limites.map(c => c[1]);
+        const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+        const activos = reportes.filter(r =>
+            r.estado !== 'resuelto' &&
+            r.lat >= minLat && r.lat <= maxLat &&
+            r.lng >= minLng && r.lng <= maxLng
+        );
+        const urgentes = activos.filter(r => r.prioridad === 'alta').length;
+        if (activos.length === 0) continue;
+
+        const cls = urgentes > 0 ? 'warning' : 'ok';
+        const label = L.marker(center, {
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="district-label ${cls}">${d.nombre} <span class="count">${activos.length}</span></div>`,
+                iconSize: [120, 30],
+                iconAnchor: [60, 15],
+            }),
+            interactive: false,
+        });
+        mapInstance.addLayer(label);
+        window._districtLabels.push(label);
+    }
+}
+
+function buildPopup(r) {
+    const propuestasHTML = (r.propuestas || []).map(p =>
+        `<div class="popup-propuesta">${escapeHtml(p.texto)}<span class="votos">▲ ${p.votos}</span></div>`
+    ).join('');
+
+    const diasRest = (r.plazoLimite || 0) - (r.diasTranscurridos || 0);
+    const pct = Math.min(100, ((r.diasTranscurridos || 0) / (r.plazoLimite || 1)) * 100);
+    const urgenteClass = diasRest <= 3 ? 'urgente' : '';
+    const timelineLabel = r.estado === 'resuelto'
+        ? '<span style="color:var(--verde);">✓ Resuelto en ' + r.diasTranscurridos + ' días</span>'
+        : diasRest > 0
+            ? `<span>${diasRest} días restantes</span>`
+            : `<span style="color:var(--coral);">⚠ ${Math.abs(diasRest)} días vencidos</span>`;
+
+    const escalaHTML = r.escalamiento?.activo
+        ? `<div class="popup-escalamiento activo">⚖️ Escalado: ${escapeHtml(r.escalamiento.instancia)}</div>`
+        : '';
+
+    const afectadosHTML = r.afectados
+        ? `<div style="font-size:0.75rem; color:var(--texto-suave); margin-top:4px;">👥 ${r.afectados.toLocaleString()} personas afectadas</div>`
+        : '';
+
+    return `
+        <div class="popup-content popup-expanded" data-report-id="${r.id}">
+            <h4>${CATEGORIAS[r.categoria]?.icon || '📍'} ${escapeHtml(r.titulo)}</h4>
+            <div class="cat">${escapeHtml(r.usuario)} · ${r.fecha}</div>
+
+            <div style="margin-top:6px;">
+                <span class="badge-popup badge-${r.prioridad}">${PRIORIDADES[r.prioridad]?.label}</span>
+                <span class="badge-popup badge-${r.estado}">${ESTADOS[r.estado]?.label}</span>
+            </div>
+
+            <div class="popup-section">
+                <h5>📋 ¿Qué pasó?</h5>
+                <p>${escapeHtml(r.descripcion || '(sin descripción)')}</p>
+                ${afectadosHTML}
+            </div>
+
+            ${propuestasHTML ? `
+            <div class="popup-section">
+                <h5>💡 Propuestas de solución</h5>
+                ${propuestasHTML}
+            </div>` : ''}
+
+            ${r.plazoLimite ? `
+            <div class="popup-section">
+                <h5>⏱️ Plazo de resolución</h5>
+                <div class="popup-timeline">
+                    <div class="popup-timeline-bar">
+                        <div class="popup-timeline-fill ${urgenteClass}" style="width:${pct}%"></div>
+                    </div>
+                </div>
+                <div style="font-size:0.75rem; margin-top:4px;">${timelineLabel}</div>
+            </div>` : ''}
+
+            ${escalaHTML}
+
+            <div class="popup-actions">
+                <button data-action="estado">Cambiar estado</button>
+                <button data-action="copiar">Link</button>
+                <button data-action="eliminar">Eliminar</button>
+            </div>
+        </div>
+    `;
+}
+
+function attachPopupActions(reportId) {
+    const popup = document.querySelector(`[data-report-id="${reportId}"]`);
+    if (!popup) return;
+    popup.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const action = btn.dataset.action;
+            if (action === 'estado') cycleEstado(reportId);
+            else if (action === 'copiar') copyDeepLink(reportId);
+            else if (action === 'eliminar') deleteReport(reportId);
+        });
+    });
+}
+
+// ================================================================
+// HEATMAP
+// ================================================================
+function refreshHeatmap() {
+    if (!heatVisible) return;
+    if (heatLayer) mapInstance.removeLayer(heatLayer);
+    const weights = { alta: 1.0, media: 0.5, baja: 0.3 };
+    const points = reportesFiltrados()
+        .filter(r => r.estado !== 'resuelto')
+        .map(r => [r.lat, r.lng, weights[r.prioridad] || 0.3]);
+    if (points.length === 0) return;
+    heatLayer = L.heatLayer(points, { radius: 40, blur: 25, maxZoom: 17 });
+    mapInstance.addLayer(heatLayer);
+}
+
+function toggleHeatmap(visible) {
+    heatVisible = visible;
+    if (heatLayer) mapInstance.removeLayer(heatLayer);
+    if (visible) {
+        refreshHeatmap();
+        Toast.info('Heatmap activado');
+    }
+}
+
+// ================================================================
+// CRUD REPORTES
+// ================================================================
+function addReport(data) {
+    const newId = 'r' + Date.now();
+    const reporte = {
+        id: newId,
+        titulo: data.titulo,
+        categoria: data.categoria,
+        prioridad: data.prioridad,
+        estado: 'detectado',
+        lat: data.lat,
+        lng: data.lng,
+        usuario: 'Tú',
+        fecha: new Date().toISOString().slice(0, 10),
+        descripcion: data.descripcion || '',
+        propuestas: [],
+        afectados: null,
+        plazoLimite: data.prioridad === 'alta' ? 15 : data.prioridad === 'media' ? 21 : 30,
+        diasTranscurridos: 0,
+        escalamiento: { activo: false },
+    };
+    State.reportes.unshift(reporte);
+    Storage.save();
+    refreshMarkers();
+    return reporte;
+}
+
+function deleteReport(id) {
+    if (!confirm('¿Eliminar este reporte? No se puede deshacer.')) return;
+    State.reportes = State.reportes.filter(r => r.id !== id);
+    Storage.save();
+    refreshMarkers();
+    mapInstance.closePopup();
+    Toast.success('Reporte eliminado');
+}
+
+function cycleEstado(id) {
+    const r = State.reportes.find(x => x.id === id);
+    if (!r) return;
+    const orden = ['detectado','validado','progreso','resuelto'];
+    const idx = orden.indexOf(r.estado);
+    r.estado = orden[(idx + 1) % orden.length];
+    Storage.save();
+    refreshMarkers();
+    Toast.success(`Estado → ${ESTADOS[r.estado].label}`);
+}
+
+function copyDeepLink(id) {
+    const url = `${window.location.origin}${window.location.pathname}#reporte=${id}`;
+    navigator.clipboard.writeText(url)
+        .then(() => Toast.success('Link copiado al portapapeles'))
+        .catch(() => Toast.error('No se pudo copiar'));
+}
+
+// ================================================================
+// STATS
+// ================================================================
+function updateStats() {
+    const activos = State.reportes.filter(r => r.estado !== 'resuelto');
+    const resueltos = State.reportes.filter(r => r.estado === 'resuelto');
+    const alta  = activos.filter(r => r.prioridad === 'alta').length;
+    const media = activos.filter(r => r.prioridad === 'media').length;
+    const baja  = activos.filter(r => r.prioridad === 'baja').length;
+
+    document.getElementById('statProblemas').textContent = activos.length;
+    document.getElementById('statResueltosMap').textContent = resueltos.length;
+    document.getElementById('statAlta').textContent = alta;
+    document.getElementById('statMedia').textContent = media;
+    document.getElementById('statBaja').textContent = baja;
+    document.getElementById('statResueltos').textContent = resueltos.length;
+    document.getElementById('badgeReportes').textContent = State.reportes.length;
+
+    // Población total
+    const totalPob = Object.values(TERRITORIO.distritos).reduce((s, d) => s + d.poblacion, 0);
+    document.getElementById('statPoblacion').textContent = totalPob.toLocaleString();
+}
+
+// ================================================================
+// PANEL LATERAL
+// ================================================================
+function renderPanel() {
+    const content = document.getElementById('panelContent');
+    if (State.panel.tab === 'filtros') {
+        content.innerHTML = renderFiltros();
+        wireUpFilterChips();
+    } else {
+        content.innerHTML = renderLista();
+        wireUpReportCards();
+    }
+}
+
+function renderFiltros() {
+    const cats = Object.entries(CATEGORIAS).map(([k, v]) =>
+        `<span class="chip ${State.filtros.categorias.has(k) ? 'active':''}" data-filter="categoria" data-value="${k}">${v.icon} ${v.label}</span>`
+    ).join('');
+    const prios = Object.entries(PRIORIDADES).map(([k, v]) =>
+        `<span class="chip ${State.filtros.prioridades.has(k) ? 'active':''}" data-filter="prioridad" data-value="${k}">${v.icon} ${v.label}</span>`
+    ).join('');
+    const ests = Object.entries(ESTADOS).map(([k, v]) =>
+        `<span class="chip ${State.filtros.estados.has(k) ? 'active':''}" data-filter="estado" data-value="${k}">${v.icon} ${v.label}</span>`
+    ).join('');
+    return `
+        <div class="panel-section">
+            <h4>Categorías</h4>
+            <div class="chip-group">${cats}</div>
+        </div>
+        <div class="panel-section">
+            <h4>Prioridad</h4>
+            <div class="chip-group">${prios}</div>
+        </div>
+        <div class="panel-section">
+            <h4>Estado</h4>
+            <div class="chip-group">${ests}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearFilters()" style="width:100%; justify-content:center;">🗑️ Limpiar filtros</button>
+    `;
+}
+
+function renderLista() {
+    const filtrados = reportesFiltrados();
+    if (filtrados.length === 0) {
+        return `<div class="report-card-empty">No hay reportes que coincidan con los filtros.</div>`;
+    }
+    return filtrados.map(r => `
+        <div class="report-card priority-${r.prioridad}" data-report-id="${r.id}">
+            <div class="report-card-title">${CATEGORIAS[r.categoria]?.icon || '📍'} ${escapeHtml(r.titulo)}</div>
+            <div class="report-card-meta">
+                <span>${ESTADOS[r.estado]?.icon} ${ESTADOS[r.estado]?.label}</span>
+                <span>·</span>
+                <span>${r.usuario}</span>
+                <span>·</span>
+                <span>${r.fecha}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function wireUpFilterChips() {
+    document.querySelectorAll('.chip[data-filter]').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const tipo = chip.dataset.filter;
+            const value = chip.dataset.value;
+            const set = tipo === 'categoria' ? State.filtros.categorias
+                     : tipo === 'prioridad' ? State.filtros.prioridades
+                     : State.filtros.estados;
+            if (set.has(value)) set.delete(value);
+            else set.add(value);
+            chip.classList.toggle('active');
+            refreshMarkers();
+        });
+    });
+}
+
+function wireUpReportCards() {
+    document.querySelectorAll('.report-card[data-report-id]').forEach(card => {
+        card.addEventListener('click', () => {
+            const id = card.dataset.reportId;
+            const r = State.reportes.find(x => x.id === id);
+            if (!r) return;
+            mapInstance.flyTo([r.lat, r.lng], 16, { duration: 1.2 });
+        });
+    });
+}
+
+function clearFilters() {
+    State.filtros.categorias.clear();
+    State.filtros.prioridades.clear();
+    State.filtros.estados.clear();
+    State.filtros.busqueda = '';
+    document.getElementById('globalSearch').value = '';
+    refreshMarkers();
+    Toast.info('Filtros limpiados');
+}
+
+// ================================================================
+// EXPORT / IMPORT
+// ================================================================
+function exportData() {
+    const data = {
+        schemaVersion: CONFIG.schemaVersion,
+        exportedAt: new Date().toISOString(),
+        territorio: TERRITORIO,
+        reportes: State.reportes,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `atlas-juliaca-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.success(`Exportados ${State.reportes.length} reportes`);
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data.reportes)) throw new Error('Formato inválido');
+            if (!confirm(`Importar ${data.reportes.length} reportes? Se sumarán a los actuales.`)) return;
+            // dedupe por id
+            const existentes = new Set(State.reportes.map(r => r.id));
+            const nuevos = data.reportes.filter(r => !existentes.has(r.id));
+            State.reportes = [...nuevos, ...State.reportes];
+            Storage.save();
+            refreshMarkers();
+            Toast.success(`Importados ${nuevos.length} reportes nuevos (${data.reportes.length - nuevos.length} duplicados omitidos)`);
+        } catch (err) {
+            Toast.error('Archivo inválido: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+// ================================================================
+// GEOLOCATION
+// ================================================================
+function useMyLocation() {
+    if (!navigator.geolocation) {
+        Toast.error('Geolocalización no disponible en tu navegador');
+        return;
+    }
+    Toast.info('Obteniendo ubicación...');
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            State.pickedCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            updateCoordsHint();
+            Toast.success('Ubicación obtenida');
+        },
+        (err) => Toast.error('No se pudo obtener ubicación: ' + err.message),
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function pickOnMap() {
+    State.pickingLocation = true;
+    closeModal('reportModal');
+    mapInstance.getContainer().style.cursor = 'crosshair';
+    Toast.info('Hacé clic en el mapa donde está el problema');
+}
+
+function updateCoordsHint() {
+    const el = document.getElementById('coordsHint');
+    if (State.pickedCoords) {
+        el.textContent = `Coordenadas: ${State.pickedCoords.lat.toFixed(5)}, ${State.pickedCoords.lng.toFixed(5)}`;
+        el.style.color = 'var(--verde)';
+    } else {
+        el.textContent = 'Coordenadas: aleatorias (no especificadas)';
+        el.style.color = '';
+    }
+}
+
+// ================================================================
+// CONTROLES MAPA
+// ================================================================
+function toggleLayer(name, visible) {
+    if (name === 'marcadores') {
+        if (visible) mapInstance.addLayer(markerCluster);
+        else mapInstance.removeLayer(markerCluster);
+        return;
+    }
+    const layer = layers[name];
+    if (!layer) return;
+    if (visible) mapInstance.addLayer(layer);
+    else mapInstance.removeLayer(layer);
+}
+
+function zoomToDistrict(key) {
+    const d = TERRITORIO.distritos[key];
+    if (!d || !mapInstance) return;
+    const coords = d.limites;
+    const center = [
+        coords.reduce((s, c) => s + c[0], 0) / coords.length,
+        coords.reduce((s, c) => s + c[1], 0) / coords.length
+    ];
+    mapInstance.flyTo(center, 15, { duration: 1.5 });
+}
+
+function resetView() {
+    mapInstance.flyTo(CONFIG.defaultCenter, CONFIG.defaultZoom, { duration: 1.2 });
+    clearFilters();
+}
+
+// ================================================================
+// MODAL
+// ================================================================
+function showNewReport() {
+    document.getElementById('reportModal').classList.add('open');
+    setTimeout(() => document.getElementById('repTitulo').focus(), 100);
+}
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+function toggleUserMenu() {
+    Toast.info('Perfil: Carlos Jara · 12 reportes · 5 propuestas', 4000);
+}
+
+// ================================================================
+// DEEPLINKS
+// ================================================================
+function handleDeeplink() {
+    const hash = window.location.hash;
+    const match = hash.match(/^#reporte=(.+)$/);
+    if (!match) return;
+    const id = match[1];
+    const r = State.reportes.find(x => x.id === id);
+    if (r) {
+        mapInstance.flyTo([r.lat, r.lng], 17, { duration: 1.5 });
+        setTimeout(() => {
+            const marker = findMarkerById(id);
+            if (marker) marker.openPopup();
+        }, 1600);
+        Toast.info(`Abriendo reporte: ${r.titulo}`);
+    }
+}
+
+function findMarkerById(id) {
+    let found = null;
+    markerCluster.eachLayer(m => {
+        const popup = m.getPopup();
+        if (popup && popup.getContent().includes(`data-report-id="${id}"`)) found = m;
+    });
+    return found;
+}
+
+// ================================================================
+// UTILS
+// ================================================================
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+}
+
+// ================================================================
+// RELOJ
+// ================================================================
+function updateClock() {
+    document.getElementById('clockDisplay').textContent =
+        new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ================================================================
+// KEYBOARD SHORTCUTS
+// ================================================================
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        const inForm = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+
+        if (e.key === '/' && !inForm) {
+            e.preventDefault();
+            document.getElementById('globalSearch').focus();
+        } else if ((e.key === 'n' || e.key === 'N') && !inForm) {
+            showNewReport();
+        } else if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+            document.activeElement?.blur();
+        } else if (e.key === '?' && !inForm) {
+            const hint = document.getElementById('keyboardHint');
+            hint.classList.add('visible');
+            setTimeout(() => hint.classList.remove('visible'), 3000);
+        }
+    });
+}
+
+// ================================================================
+// INICIO
+// ================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Cargar de localStorage o usar seed
+    const stored = Storage.load();
+    if (stored && Array.isArray(stored.reportes) && stored.reportes.length > 0) {
+        State.reportes = stored.reportes;
+        Toast.info(`${State.reportes.length} reportes cargados desde local`);
+    } else {
+        State.reportes = [...SEED_REPORTES];
+        Storage.save();
+        Toast.info('Datos de muestra cargados');
+    }
+
+    // 2. Inicializar mapa
+    setTimeout(() => {
+        initMap();
+        handleDeeplink();
+    }, 200);
+
+    // 3. Búsqueda funcional
+    document.getElementById('globalSearch').addEventListener('input', (e) => {
+        State.filtros.busqueda = e.target.value;
+        refreshMarkers();
+    });
+
+    // 4. Tabs del panel
+    document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            State.panel.tab = tab.dataset.tab;
+            renderPanel();
+        });
+    });
+
+    // 5. Navegación sidebar
+    document.querySelectorAll('.nav-item[data-section]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            if (this.dataset.section === 'mapa') {
+                document.querySelector('#section-mapa').style.display = 'flex';
+                setTimeout(() => mapInstance?.invalidateSize(), 200);
+            } else {
+                Toast.info(`Sección ${this.dataset.section} — en desarrollo`);
+                this.classList.remove('active');
+                document.querySelector('.nav-item[data-section="mapa"]').classList.add('active');
+            }
+        });
+    });
+
+    // 6. Submit del modal con validación
+    document.getElementById('submitReportBtn').addEventListener('click', function() {
+        const tituloEl = document.getElementById('repTitulo');
+        const titulo = tituloEl.value.trim();
+        if (titulo.length < 8) {
+            tituloEl.classList.add('error');
+            Toast.error('Título: mínimo 8 caracteres');
+            tituloEl.focus();
+            return;
+        }
+        tituloEl.classList.remove('error');
+
+        const coords = State.pickedCoords || {
+            lat: -15.49 + (Math.random() - 0.5) * 0.08,
+            lng: -70.13 + (Math.random() - 0.5) * 0.08,
+        };
+
+        const reporte = addReport({
+            titulo,
+            categoria: document.getElementById('repCategoria').value,
+            prioridad: document.getElementById('repPrioridad').value,
+            descripcion: document.getElementById('repDesc').value.trim(),
+            lat: coords.lat,
+            lng: coords.lng,
+        });
+
+        // reset
+        closeModal('reportModal');
+        document.getElementById('repTitulo').value = '';
+        document.getElementById('repDesc').value = '';
+        document.getElementById('repUbicacion').value = '';
+        State.pickedCoords = null;
+        updateCoordsHint();
+
+        Toast.success('Reporte publicado ✨');
+        mapInstance.flyTo([reporte.lat, reporte.lng], 16, { duration: 1.5 });
+    });
+
+    // 7. Click en overlay del modal cierra
+    document.getElementById('reportModal').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+    });
+
+    // 8. Keyboard shortcuts
+    setupKeyboardShortcuts();
+
+    // 9. Reloj
+    updateClock();
+    setInterval(updateClock, 30000);
+
+    // 10. Mostrar hint de teclado al inicio
+    setTimeout(() => {
+        const hint = document.getElementById('keyboardHint');
+        hint.classList.add('visible');
+        setTimeout(() => hint.classList.remove('visible'), 4000);
+    }, 2000);
+
+    console.log('%c🗺️ ATLAS JULIACA v2 cargado', 'color:#00e676; font-size:16px; font-weight:bold;');
+    console.log('Atajos: / buscar · N nuevo reporte · Esc cerrar · ? ayuda');
+});
+</script>
+</body>
+</html>
